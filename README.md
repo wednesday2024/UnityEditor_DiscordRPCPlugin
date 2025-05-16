@@ -1,5 +1,22 @@
 ## How to install it into your Unity project:
 
+## Installation Instructions
+
+### 1. Add the Script
+
+Move `DiscordRPCEditor.cs` into an `Editor` folder in your Unity project.
+Example: `Assets/Editor/DiscordRPCEditor.cs`
+
+### 2. Install the Discord GameSDK
+
+Download from:
+[https://discord.com/developers/docs/game-sdk/sdk-starter-guide](https://discord.com/developers/docs/game-sdk/sdk-starter-guide)
+
+Extract and place the contents into the `Assets/Plugins/` folder.
+
+### 3. Run the Plugin
+
+Open the project in Unity. Discord Rich Presence will activate.
 
 
 
