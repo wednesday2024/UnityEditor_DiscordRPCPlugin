@@ -1,13 +1,11 @@
 ## How to install it into your Unity project:
 
-## Installation Instructions
-
-### 1. Add the Script
+### 1. Add the Script to the Editor folder
 
 Move `DiscordRPCEditor.cs` into an `Editor` folder in your Unity project.
 Example: `Assets/Editor/DiscordRPCEditor.cs`
 
-### 2. Install the Discord GameSDK
+### 2. Install the latest Discord GameSDK
 
 Download from:
 [https://discord.com/developers/docs/game-sdk/sdk-starter-guide](https://discord.com/developers/docs/game-sdk/sdk-starter-guide)
