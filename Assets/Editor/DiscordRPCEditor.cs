@@ -40,7 +40,7 @@ public static class DiscordRPCEditor
         catch (Exception e)
         {
             discordInitialized = false;
-            Debug.Log("[DiscordRPCEditor] Discord not detected or failed to initialize. RPC will not start.\n" + e.Message);
+            Debug.Log("[DiscordRPCEditor] Discord was not detected or failed to initialize. The RPC will not start.\n" + e.Message);
         }
     }
 
