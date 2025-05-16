@@ -10,7 +10,7 @@ Example: `Assets/Editor/DiscordRPCEditor.cs`
 Download from:
 [https://discord.com/developers/docs/developer-tools/game-sdk](https://discord.com/developers/docs/developer-tools/game-sdk)
 
-Extract and place the contents into the `Assets/Plugins/` folder.
+Extract and place the `csharp` folder contents into the `Assets/Plugins/` folder.
 
 ### 3. Run the Plugin
 
