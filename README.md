@@ -8,7 +8,7 @@ Example: `Assets/Editor/DiscordRPCEditor.cs`
 ### 2. Install the latest Discord GameSDK
 
 Download from:
-[https://discord.com/developers/docs/game-sdk/sdk-starter-guide](https://discord.com/developers/docs/game-sdk/sdk-starter-guide)
+[https://discord.com/developers/docs/developer-tools/game-sdk](https://discord.com/developers/docs/developer-tools/game-sdk)
 
 Extract and place the contents into the `Assets/Plugins/` folder.
 
