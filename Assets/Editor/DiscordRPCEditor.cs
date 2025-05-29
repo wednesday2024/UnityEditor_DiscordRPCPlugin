@@ -13,7 +13,6 @@ public static class DiscordRPCEditor
     private static Activity activity;
     private static bool discordInitialized;
     private static double nextUpdateTime;
-    private static long rpcStartTimestamp;
 
     private const long defaultApplicationId = 1372515579461636126;
     private const string largeImageKey = "default_icon";
@@ -26,10 +25,12 @@ public static class DiscordRPCEditor
     private const string ShowPlatformKey = "DiscordRPC_ShowPlatform";
     private const string ShowGraphicsAPIKey = "DiscordRPC_ShowGraphicsAPI";
     private const string ShowStartTimeKey = "DiscordRPC_ShowStartTime";
+    private const string StartTimestampKey = "DiscordRPC_StartTimestamp";
+
+    private static string lastSceneName = "";
 
     static DiscordRPCEditor()
     {
-        // Set default preferences
         if (!EditorPrefs.HasKey(EnabledKey)) EditorPrefs.SetBool(EnabledKey, true);
         if (!EditorPrefs.HasKey(ShowProjectNameKey)) EditorPrefs.SetBool(ShowProjectNameKey, true);
         if (!EditorPrefs.HasKey(ShowSceneNameKey)) EditorPrefs.SetBool(ShowSceneNameKey, true);
@@ -40,10 +41,42 @@ public static class DiscordRPCEditor
 
         if (EditorPrefs.GetBool(EnabledKey))
         {
-            EditorApplication.update += Update;
-            EditorApplication.quitting += Shutdown;
-            TryInitializeDiscord();
+            EnableRPC();
         }
+    }
+
+    private static void EnableRPC()
+    {
+        if (discordInitialized)
+            return;
+        EditorApplication.update += Update;
+        EditorApplication.quitting += Shutdown;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        SceneManager.sceneUnloaded += OnSceneUnloaded;
+        TryInitializeDiscord();
+        lastSceneName = SceneManager.GetActiveScene().name;
+    }
+
+    private static void DisableRPC()
+    {
+        if (!discordInitialized)
+            return;
+        Shutdown();
+        EditorApplication.update -= Update;
+        EditorApplication.quitting -= Shutdown;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneUnloaded -= OnSceneUnloaded;
+        discordInitialized = false;
+    }
+
+    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        lastSceneName = scene.name;
+    }
+
+    private static void OnSceneUnloaded(Scene scene)
+    {
+        lastSceneName = "";
     }
 
     private static void TryInitializeDiscord()
@@ -56,24 +89,50 @@ public static class DiscordRPCEditor
             if (!string.IsNullOrEmpty(customIdStr) && long.TryParse(customIdStr, out long parsedId))
                 appId = parsedId;
 
-            discord = new Discord.Discord(appId, (UInt64)CreateFlags.NoRequireDiscord);
-            activityManager = discord.GetActivityManager();
-            rpcStartTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            discordInitialized = true;
+            try
+            {
+                discord = new Discord.Discord(appId, (UInt64)CreateFlags.NoRequireDiscord);
+            }
+            catch
+            {
+                discordInitialized = false;
+                return;
+            }
 
-            Debug.Log("[DiscordRPCEditor] Discord RPC initialized.");
+            try
+            {
+                activityManager = discord.GetActivityManager();
+            }
+            catch
+            {
+                discordInitialized = false;
+                return;
+            }
+
+            if (!EditorPrefs.HasKey(StartTimestampKey) || EditorPrefs.GetInt(StartTimestampKey) == 0)
+            {
+                int unixTime = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                EditorPrefs.SetInt(StartTimestampKey, unixTime);
+            }
+
+            discordInitialized = true;
         }
-        catch (Exception e)
+        catch
         {
             discordInitialized = false;
-            Debug.Log("[DiscordRPCEditor] Discord was not detected or failed to initialize. The RPC will not start.\n" + e.Message);
         }
     }
 
     private static void Update()
     {
         if (!discordInitialized || !EditorPrefs.GetBool(EnabledKey))
+        {
+            if (discordInitialized)
+            {
+                DisableRPC();
+            }
             return;
+        }
 
         try
         {
@@ -85,9 +144,8 @@ public static class DiscordRPCEditor
                 nextUpdateTime = EditorApplication.timeSinceStartup + 15;
             }
         }
-        catch (Exception e)
+        catch
         {
-            Debug.LogWarning("[DiscordRPCEditor] Exception during update: " + e.Message);
             discordInitialized = false;
         }
     }
@@ -95,17 +153,29 @@ public static class DiscordRPCEditor
     private static void UpdateActivity()
     {
         string unityVersion = Application.unityVersion;
-        string sceneName = SceneManager.GetActiveScene().name;
         string platform = Application.platform.ToString();
         string graphicsAPI = SystemInfo.graphicsDeviceType.ToString();
         string projectName = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(Application.dataPath));
 
+        bool showScene = EditorPrefs.GetBool(ShowSceneNameKey);
+        string sceneName = SceneManager.GetActiveScene().name;
+
+        if (showScene)
+        {
+            if (sceneName != lastSceneName)
+                lastSceneName = sceneName;
+        }
+        else
+        {
+            lastSceneName = "";
+        }
+
         string details = "";
         if (EditorPrefs.GetBool(ShowProjectNameKey)) details += $"Project: {projectName}";
-        if (EditorPrefs.GetBool(ShowSceneNameKey))
+        if (showScene && !string.IsNullOrEmpty(lastSceneName))
         {
             if (!string.IsNullOrEmpty(details)) details += " | ";
-            details += $"Scene: {sceneName}.unity";
+            details += $"Scene: {lastSceneName}.unity";
         }
 
         string state = "";
@@ -126,19 +196,31 @@ public static class DiscordRPCEditor
 
         if (EditorPrefs.GetBool(ShowStartTimeKey))
         {
+            int rpcStartTimestamp = EditorPrefs.GetInt(StartTimestampKey, 0);
+
+            if (rpcStartTimestamp == 0)
+            {
+                rpcStartTimestamp = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                EditorPrefs.SetInt(StartTimestampKey, rpcStartTimestamp);
+            }
+
             activity.Timestamps = new ActivityTimestamps
             {
                 Start = rpcStartTimestamp
             };
         }
-
-        activityManager.UpdateActivity(activity, result =>
+        else
         {
-            if (result != Result.Ok)
-            {
-                Debug.LogWarning($"[DiscordRPCEditor] Failed to update activity: {result}");
-            }
-        });
+            EditorPrefs.DeleteKey(StartTimestampKey);
+        }
+
+        try
+        {
+            activityManager.UpdateActivity(activity, result => { });
+        }
+        catch
+        {
+        }
     }
 
     private static void Shutdown()
@@ -146,11 +228,9 @@ public static class DiscordRPCEditor
         try
         {
             discord?.Dispose();
-            Debug.Log("[DiscordRPCEditor] The Discord RPC has shutdown successfully.");
         }
-        catch (Exception e)
+        catch
         {
-            Debug.LogWarning("[DiscordRPCEditor] The Discord RPC failed to shutdown successfully: " + e.Message);
         }
     }
 
@@ -172,8 +252,25 @@ public static class DiscordRPCEditor
         private void OnGUI()
         {
             GUILayout.Label("Discord RPC Settings", EditorStyles.boldLabel);
-            EditorPrefs.SetBool(EnabledKey, EditorGUILayout.Toggle("Enable Discord RPC", EditorPrefs.GetBool(EnabledKey)));
 
+            bool enabled = EditorPrefs.GetBool(EnabledKey);
+            bool newEnabled = EditorGUILayout.Toggle("Enable Discord RPC", enabled);
+
+            if (newEnabled != enabled)
+            {
+                EditorPrefs.SetBool(EnabledKey, newEnabled);
+                if (newEnabled)
+                {
+                    EnableRPC();
+                }
+                else
+                {
+                    DisableRPC();
+                    EditorPrefs.DeleteKey(StartTimestampKey);
+                }
+            }
+
+            EditorGUI.BeginDisabledGroup(!EditorPrefs.GetBool(EnabledKey));
             GUILayout.Space(10);
             GUILayout.Label("Display Options", EditorStyles.boldLabel);
             EditorPrefs.SetBool(ShowProjectNameKey, EditorGUILayout.Toggle("Show Project Name", EditorPrefs.GetBool(ShowProjectNameKey)));
@@ -189,8 +286,8 @@ public static class DiscordRPCEditor
             if (GUILayout.Button("Save App ID"))
             {
                 EditorPrefs.SetString(CustomAppIDKey, customAppId);
-                Debug.Log("[DiscordRPCEditor] Custom Application ID saved. Restart the Editor to apply changes.");
             }
+            EditorGUI.EndDisabledGroup();
         }
     }
 }
